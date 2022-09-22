@@ -3,6 +3,7 @@ function love.load()
   WWIDTH, WHEIGHT = love.window.getDesktopDimensions()
   imageShip = love.graphics.newImage("ship.png")
   imageShipWidth, imageShipHeight = imageShip:getDimensions()
+  COORD_INFINITE = 199999
 
   R2D = 180/math.pi
   PPM = 50
@@ -66,6 +67,7 @@ function love.load()
   love.window.setMode(WWIDTH,WHEIGHT,{fullscreen=true})
   love.graphics.setBackgroundColor(0, 0, 0)
   love.graphics.setPointSize(2)
+  math.randomseed(love.timer.getTime())
   initWorld()
 end
 
@@ -79,6 +81,7 @@ function initWorld()
   player.fixture = love.physics.newFixture(player.body, player.shape, 1)
   player.fixture:setRestitution(0.1)
   player.fixture:setUserData("Player")
+  player.damage=0
 
   function player:rotR(spd)
     local x,y = self.body:getPosition()
@@ -115,21 +118,19 @@ function initWorld()
     local phi = self.body:getAngle()
     local mod = self.body:getAngularVelocity()
     if mod < 0 then
-      self.rotR(spd)
+      self:rotR(spd)
     elseif mod > 0 then
-      self.rotL(spd)
+      self:rotL(spd)
     end
   end
   function player:shoot()
     local x,y = self.body:getPosition()
     local phi = self.body:getAngle()
-    local vx,vy = self.body:getLinearVelocity()
+    --local vx,vy = self.body:getLinearVelocity()
 
     local dirX,dirY = 100*math.cos(phi),100*math.sin(phi)
 
     spawnBullet(x+dirX,y+dirY,dirX,dirY,phi)
-  end
-  function player:damage()
   end
 
   world:setCallbacks(beginContact, endContact, preSolve, postSolve)
@@ -140,16 +141,14 @@ function initWorld()
 
   for i=0,AsteroidMax,1 do
     local asteroid = {}
-    function asteroid:damage()
-      self.shape:setRadius(self.shape:getRadius()-1)
-    end
     local r = math.random(15,75)
     local x = 0
-    local y = 199999+i*80
+    local y = COORD_INFINITE+i*80
     asteroid.body = love.physics.newBody(world, x, y, "dynamic")
     asteroid.shape = love.physics.newCircleShape(0, 0, r)
     asteroid.fixture = love.physics.newFixture(asteroid.body, asteroid.shape, 2-(75/r))
     asteroid.fixture:setUserData("Asteroid"..i)
+    asteroid.damage=0
     Asteroid[i]=asteroid
   end
 end
@@ -164,7 +163,17 @@ function love.update(dt)
   local Mx, My = love.mouse.getPosition()
   local spd = 1
 
-  
+  for i,k in pairs(Asteroid) do
+    if Asteroid[i].damage>0 then Asteroid[i].fixture:getShape():setRadius(math.max(Asteroid[i].fixture:getShape():getRadius()-5,8)) Asteroid[i].damage=0 end
+  end
+
+  for i,b in pairs(Bullet) do
+    b.damage=b.damage+1
+    if b.damage>0 then
+      b.body:setPosition(0,COORD_INFINITE)
+    end
+  end
+
   if timeAsteroids<love.timer.getTime()-1 then
     timeAsteroids = love.timer.getTime()
     local phi = math.random(0,360)
@@ -326,7 +335,7 @@ function beginContact(a, b, coll)
       vy=vy-vy2
     end
     local r = math.sqrt(vx^2+vy^2)
-    if r>225 then
+    if r>250 then
       AutoRotate = false
       UpdateLidar = false
       for i=0,#Lidar,1 do
@@ -335,14 +344,18 @@ function beginContact(a, b, coll)
         end
       end
     end
+    player.damage=player.damage+1
   end
   if string.sub(b:getUserData(),1,6)=="Bullet" or string.sub(a:getUserData(),1,6)=="Bullet" then
+    if string.sub(b:getUserData(),1,6)=="Bullet" then
+      Bullet[tonumber(string.sub(b:getUserData(),7,9))].damage=1
+    elseif string.sub(a:getUserData(),1,6)=="Bullet" then
+      Bullet[tonumber(string.sub(a:getUserData(),7,9))].damage=1
+    end
     if string.sub(b:getUserData(),1,8)=="Asteroid" then
-      Asteroid[tonumber(string.sub(b:getUserData(),9,14))]:damage()
+      Asteroid[tonumber(string.sub(b:getUserData(),9,14))].damage=Asteroid[tonumber(string.sub(b:getUserData(),9,14))].damage+1
     elseif string.sub(a:getUserData(),1,8)=="Asteroid" then
-      Asteroid[tonumber(string.sub(a:getUserData(),9,14))]:damage()
-    elseif string.sub(b:getUserData(),1,6)=="Player" or string.sub(a:getUserData(),1,6)=="Player" then
-      player:damage()
+      Asteroid[tonumber(string.sub(a:getUserData(),9,14))].damage=Asteroid[tonumber(string.sub(a:getUserData(),9,14))].damage+1
     end
   end
 end
@@ -382,41 +395,17 @@ function addAsteroid(x,y)
   Asteroid[AsteroidIndex].fixture:getBody():setPosition(x,y)
 end
 
-function setPlayer(it,idx)
-  obj[idx]=it
-end
-
-function getPlayer(idx)
-  return obj[idx]
-end
-
-function subPlayer(idx)
-  if obj[idx] then
-    obj[idx].body:destroy()
-    obj[idx]=nil
-  end
-end
-
-function createPlayer(idx)
-  local it = {}
-  it.body = love.physics.newBody(world, 0, 0, "dynamic")
-  it.shape = love.physics.newRectangleShape(0,0,100,50)
-  it.fixture = love.physics.newFixture(it.body, it.shape, 1)
-  it.fixture:setRestitution(0.9)
-  it.fixture:setUserData("Player "..idx)
-  return it
-end
-
 function spawnBullet(x,y,vx,vy,phi)
   local it = {}
   it.body = love.physics.newBody(world, x, y, "dynamic")
-  it.shape = love.physics.newRectangleShape(0,0,8,2)
+  it.shape = love.physics.newRectangleShape(0,0,16,2)
   it.fixture = love.physics.newFixture(it.body, it.shape, 0.1)
   it.fixture:setRestitution(1)
-  it.fixture:setUserData("Bullet")
+  it.fixture:setUserData("Bullet"..BulletIndex)
   it.body:applyForce(vx,vy)
   it.body:setAngle(phi)
   it.body:setBullet(true)
+  it.damage=-50
   Bullet[BulletIndex]=it
   BulletIndex=(BulletIndex+1)%BulletMax
   return it
