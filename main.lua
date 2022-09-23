@@ -4,14 +4,15 @@ function love.load()
   imageShip = love.graphics.newImage("ship.png")
   imageShipWidth, imageShipHeight = imageShip:getDimensions()
   COORD_INFINITE = 199999
+  drawDebug = false
 
   R2D = 180/math.pi
   PPM = 50
   --Thrusters
-  TF = 75
-  TB = -75
-  TL = -75/2
-  TR = 75/2
+  TF = 25
+  TB = -25
+  TL = -25/2
+  TR = 25/2
   
   Tradius = math.sqrt(TF^2+TL^2)
 
@@ -19,14 +20,16 @@ function love.load()
   TFRphi = math.atan2(TR,TF)
   TBLphi = math.atan2(TL,TB)
   TBRphi = math.atan2(TR,TB)
-  TMphi  = math.atan2(0,-75)
+  TMphi  = math.atan2(0,TB)
+  TBphi  = math.atan2(0,TF)
 
   --Forces
-  FFLphi = math.atan2(75,0)
-  FFRphi = math.atan2(-75,0)
-  FBLphi = math.atan2(75,0)
-  FBRphi = math.atan2(-75,0)
-  FMphi  = math.atan2(0,75)
+  FFLphi = math.atan2(TF,0)
+  FFRphi = math.atan2(TB,0)
+  FBLphi = math.atan2(TF,0)
+  FBRphi = math.atan2(TB,0)
+  FMphi  = math.atan2(0,TF)
+  FBphi  = math.atan2(0,TB)
 
   AutoRotate = true
   Acc = 0.0001
@@ -38,7 +41,7 @@ function love.load()
   HUDr = math.sqrt(HUDradius^2+HUDradius^2)
   HUDrStart = math.sqrt(HUDradiusStart^2+HUDradiusStart^2)
   HUDrStop =  math.sqrt(HUDradiusStop^2+HUDradiusStop^2)
-  MAXAV = 105
+  MAXAV = 51
 
   UpdateLidar=true
   Lidar = {}
@@ -66,7 +69,7 @@ function love.load()
 
   love.window.setMode(WWIDTH,WHEIGHT,{fullscreen=true})
   love.graphics.setBackgroundColor(0, 0, 0)
-  love.graphics.setPointSize(2)
+  love.graphics.setPointSize(3)
   math.randomseed(love.timer.getTime())
   initWorld()
 end
@@ -77,10 +80,26 @@ function initWorld()
 
   player = {}
   player.body = love.physics.newBody(world, 0, 0, "dynamic")
-  player.shape = love.physics.newRectangleShape(0,0,150,75)
-  player.fixture = love.physics.newFixture(player.body, player.shape, 1)
+  local shape = love.physics.newRectangleShape(0,-34,150,6)
+  local shape2 = love.physics.newRectangleShape(0,34,150,6)
+  local shape3 = love.physics.newRectangleShape(56,-22,7,12)
+  local shape4 = love.physics.newRectangleShape(56,22,7,12)
+  local shape5 = love.physics.newRectangleShape(-67,0,15,15)
+  local shape6 = love.physics.newRectangleShape(-55,0,5,55)
+  player.fixture = love.physics.newFixture(player.body, shape, 1)
+  player.fixture2 = love.physics.newFixture(player.body, shape2, 1)
+  player.fixture3 = love.physics.newFixture(player.body, shape3, 1)
+  player.fixture4 = love.physics.newFixture(player.body, shape4, 1)
+  player.fixture5 = love.physics.newFixture(player.body, shape5, 1)
+  player.fixture6 = love.physics.newFixture(player.body, shape6, 1)
   player.fixture:setRestitution(0.1)
-  player.fixture:setUserData("Player")
+  player.fixture:setUserData("Player1")
+  player.fixture2:setRestitution(0.1)
+  player.fixture2:setUserData("Player2")
+  player.fixture3:setUserData("Player3")
+  player.fixture4:setUserData("Player4")
+  player.fixture5:setUserData("Player5")
+  player.fixture6:setUserData("Player6")
   player.damage=0
 
   function player:rotR(spd)
@@ -110,8 +129,13 @@ function initWorld()
   function player:fwd(spd)
     local x,y = self.body:getPosition()
     local phi = self.body:getAngle()
-    spd=spd*3
+    spd=spd*2
     self.body:applyForce(Tradius*math.cos(FMphi+phi)*spd, Tradius*math.sin(FMphi+phi)*spd,x+(Tradius*math.cos(TMphi+phi)),y+(Tradius*math.sin(TMphi+phi)))--Main
+  end
+  function player:bck(spd)
+    local x,y = self.body:getPosition()
+    local phi = self.body:getAngle()
+    self.body:applyForce(Tradius*math.cos(FBphi+phi)*spd, Tradius*math.sin(FBphi+phi)*spd,x+(Tradius*math.cos(TBphi+phi)),y+(Tradius*math.sin(TBphi+phi)))--Back
   end
   function player:aslow(spd)
     local x,y = self.body:getPosition()
@@ -145,8 +169,8 @@ function initWorld()
     local x = 0
     local y = COORD_INFINITE+i*80
     asteroid.body = love.physics.newBody(world, x, y, "dynamic")
-    asteroid.shape = love.physics.newCircleShape(0, 0, r)
-    asteroid.fixture = love.physics.newFixture(asteroid.body, asteroid.shape, 2-(75/r))
+    local shape = love.physics.newCircleShape(0, 0, r)
+    asteroid.fixture = love.physics.newFixture(asteroid.body, shape, 2-(75/r))
     asteroid.fixture:setUserData("Asteroid"..i)
     asteroid.damage=0
     Asteroid[i]=asteroid
@@ -164,7 +188,13 @@ function love.update(dt)
   local spd = 1
 
   for i,k in pairs(Asteroid) do
-    if Asteroid[i].damage>0 then Asteroid[i].fixture:getShape():setRadius(math.max(Asteroid[i].fixture:getShape():getRadius()-5,8)) Asteroid[i].damage=0 end
+    if Asteroid[i].damage>0 then
+      Asteroid[i].fixture:getShape():setRadius(math.max(Asteroid[i].fixture:getShape():getRadius()-5,5))
+      if Asteroid[i].fixture:getShape():getRadius()<=20 then
+        Asteroid[i].body:setMass(0.1)
+      end
+      Asteroid[i].damage=0
+    end
   end
 
   for i,b in pairs(Bullet) do
@@ -214,6 +244,8 @@ function love.update(dt)
 
   if love.keyboard.isDown("w") then
     player:fwd(spd)
+  elseif love.keyboard.isDown("s") then
+    player:bck(spd)
   elseif love.keyboard.isDown("x") then
     player:aslow(spd)
   elseif love.keyboard.isDown("r") then
@@ -225,7 +257,7 @@ function love.update(dt)
   end
 
   if UpdateLidar then
-    LidarPhi=(LidarPhi+5)%355
+    LidarPhi=(LidarPhi+5)%365
     for i=1,5,1 do
       Lx = LidarR*math.cos((LidarPhi+i)/R2D)
       Ly = LidarR*math.sin((LidarPhi+i)/R2D)
@@ -238,8 +270,8 @@ function love.update(dt)
   if AutoRotate then
     GoalPhi = math.atan2(GoalY,GoalX)*R2D%360
     if GoalPhi > phi+Acc or GoalPhi < phi-Acc then
-      local distR = math.abs((GoalPhi - (phi+phiV*0.75)+360)%360)
-      local distL = math.abs(((phi+phiV*0.75) - GoalPhi+360)%360)
+      local distR = math.abs((GoalPhi - (phi+phiV*1)+360)%360)
+      local distL = math.abs(((phi+phiV*1) - GoalPhi+360)%360)
       if math.abs(phiV)>MAXAV then
         player:aslow(1)
       elseif distR - distL > 0 and distL >= 1 then
@@ -272,6 +304,16 @@ function love.draw()
 
   love.graphics.draw(imageShip,x+math.cos(angle),y+math.sin(angle),angle,1,1,imageShipWidth/2,imageShipHeight/2)
   
+  if drawDebug then
+    love.graphics.polygon("line",player.body:getWorldPoints(player.fixture:getShape():getPoints()))
+    love.graphics.polygon("line",player.body:getWorldPoints(player.fixture2:getShape():getPoints()))
+    love.graphics.polygon("line",player.body:getWorldPoints(player.fixture3:getShape():getPoints()))
+    love.graphics.polygon("line",player.body:getWorldPoints(player.fixture4:getShape():getPoints()))
+    love.graphics.polygon("line",player.body:getWorldPoints(player.fixture5:getShape():getPoints()))
+    love.graphics.polygon("line",player.body:getWorldPoints(player.fixture6:getShape():getPoints()))
+    love.graphics.polygon("line",player.body:getWorldPoints(player.fixture7:getShape():getPoints()))
+  end
+
   love.graphics.setColor(0.1, 0.1, 0.1)--grey
   --Asteroids
   for i=0,AsteroidMax,1 do
@@ -284,11 +326,11 @@ function love.draw()
   love.graphics.setColor(0.1,1,0.1)--green
 
   for i,b in pairs(Bullet) do
-    love.graphics.polygon("fill",b.body:getWorldPoints(b.shape:getPoints()))
+    love.graphics.polygon("fill",b.body:getWorldPoints(b.fixture:getShape():getPoints()))
   end
 
-  love.graphics.print(string.format("X %.1f Y %.1f",x,y),x-WWIDTH/2+50,y-WHEIGHT/2+50)
-  love.graphics.print(string.format("Angle %.5f",phi),x-WWIDTH/2+50,y-WHEIGHT/2+70)
+  love.graphics.print(string.format("X %.1f Y %.1f",x/PPM,y/PPM),x-WWIDTH/2+50,y-WHEIGHT/2+50)
+  love.graphics.print(string.format("Angle %.2f",phi),x-WWIDTH/2+50,y-WHEIGHT/2+70)
 
   love.graphics.line(x,y,x+vx/2,y+vy/2)--vector
   love.graphics.circle("line",x,y,HUDradius)--circle
@@ -370,22 +412,27 @@ function postSolve(a, b, coll, normalimpulse, tangentimpulse)
 end
 
 ray[1] = function(fixture, x, y, xn, yn, fraction)
+  if fraction<=0.05 then return -1 end
   Lidar[LidarPhi-4]=fraction
   return 0
 end
 ray[2] = function(fixture, x, y, xn, yn, fraction)
+  if fraction<=0.05 then return -1 end
   Lidar[LidarPhi-3]=fraction
   return 0
 end
 ray[3] = function(fixture, x, y, xn, yn, fraction)
+  if fraction<=0.05 then return -1 end
   Lidar[LidarPhi-2]=fraction
   return 0
 end
 ray[4] = function(fixture, x, y, xn, yn, fraction)
+  if fraction<=0.05 then return -1 end
   Lidar[LidarPhi-1]=fraction
   return 0
 end
 ray[5] = function(fixture, x, y, xn, yn, fraction)
+  if fraction<=0.05 then return -1 end
   Lidar[LidarPhi-0]=fraction
   return 0
 end
@@ -398,8 +445,8 @@ end
 function spawnBullet(x,y,vx,vy,phi)
   local it = {}
   it.body = love.physics.newBody(world, x, y, "dynamic")
-  it.shape = love.physics.newRectangleShape(0,0,16,2)
-  it.fixture = love.physics.newFixture(it.body, it.shape, 0.1)
+  local shape = love.physics.newRectangleShape(0,0,16,2)
+  it.fixture = love.physics.newFixture(it.body, shape, 0.1)
   it.fixture:setRestitution(1)
   it.fixture:setUserData("Bullet"..BulletIndex)
   it.body:applyForce(vx,vy)
