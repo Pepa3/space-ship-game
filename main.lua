@@ -56,7 +56,6 @@ function love.load()
   timeAsteroidsParticles = 0
 
   Asteroid = {}
-  AsteroidIndex = 0
   AsteroidMax = 100
 
   Particle = {}
@@ -129,12 +128,13 @@ function initWorld()
   function player:fwd(spd)
     local x,y = self.body:getPosition()
     local phi = self.body:getAngle()
-    spd=spd*2
+    spd=spd*3
     self.body:applyForce(Tradius*math.cos(FMphi+phi)*spd, Tradius*math.sin(FMphi+phi)*spd,x+(Tradius*math.cos(TMphi+phi)),y+(Tradius*math.sin(TMphi+phi)))--Main
   end
   function player:bck(spd)
     local x,y = self.body:getPosition()
     local phi = self.body:getAngle()
+    spd=spd*2
     self.body:applyForce(Tradius*math.cos(FBphi+phi)*spd, Tradius*math.sin(FBphi+phi)*spd,x+(Tradius*math.cos(TBphi+phi)),y+(Tradius*math.sin(TBphi+phi)))--Back
   end
   function player:aslow(spd)
@@ -167,7 +167,7 @@ function initWorld()
     local asteroid = {}
     local r = math.random(15,75)
     local x = 0
-    local y = COORD_INFINITE+i*80
+    local y = COORD_INFINITE+i*160
     asteroid.body = love.physics.newBody(world, x, y, "dynamic")
     local shape = love.physics.newCircleShape(0, 0, r)
     asteroid.fixture = love.physics.newFixture(asteroid.body, shape, 2-(75/r))
@@ -207,7 +207,7 @@ function love.update(dt)
   if timeAsteroids<love.timer.getTime()-1 then
     timeAsteroids = love.timer.getTime()
     local phi = math.random(0,360)
-    local radius = math.random(2000,7500)
+    local radius = math.random(2000,7000)
     addAsteroid(radius*math.cos(phi/R2D)+x,radius*math.sin(phi/R2D)+y)
   end
   
@@ -438,8 +438,20 @@ ray[5] = function(fixture, x, y, xn, yn, fraction)
 end
 
 function addAsteroid(x,y)
-  AsteroidIndex=(AsteroidIndex+1)%AsteroidMax
-  Asteroid[AsteroidIndex].fixture:getBody():setPosition(x,y)
+  local px, py = player.body:getPosition()
+  local index = 0
+  local r = 0
+  for i,a in pairs(Asteroid) do
+    local ax, ay = a.body:getPosition()
+    ax=ax-px
+    ay=ay-py
+    local ar = math.sqrt(ax^2+ay^2)
+    if ar>r then
+      index=i
+      r=ar
+    end
+  end
+  Asteroid[index].fixture:getBody():setPosition(x,y)
 end
 
 function spawnBullet(x,y,vx,vy,phi)
@@ -464,62 +476,4 @@ end
 
 function s10(str)
   return string.sub(str,1,10)
-end
-
-function genPoints(n,r1,r2)
-  local points = {}
-  for i=1,n,1 do
-    local phi = math.random(0,360)
-    local radius = math.random(r1,r2)
-    points[i]={}
-    points[i].x=(radius*math.cos(phi/R2D))
-    points[i].y=(radius*math.sin(phi/R2D))
-  end
-  return points
-end
-
-function movePoints(points, x, y)
-  local newPoints = {}
-  for i,p in pairs(points) do
-    p.x=p.x+x
-    p.y=p.y+y
-    newPoints[i]=p
-  end
-  return newPoints
-end
-
-function removePoints(points, x, y, r)
-  points = movePoints(points,-x,-y)
-  local newPoints = {}
-  local n = 1
-  for i,p in pairs(points) do 
-    local pr = math.sqrt(p.x^2+p.y^2)
-    if pr>r then
-      newPoints[n]=p
-      n=n+1
-    end
-  end
-  newPoints = movePoints(newPoints,x,y)
-  return newPoints
-end
-
-function genAsteroids(play, num)
-  local points = {}
-  local n = 1
-  for i,p in pairs(play) do
-    local tmp = genPoints(math.ceil(num/#play),2000,7500)
-    tmp=movePoints(tmp,p.x,p.y)
-    for j,p1 in pairs(tmp) do
-      points[n]=p1
-      n=n+1
-    end
-  end
-  for i,p in pairs(play) do
-    points = removePoints(points,p.x,p.y,1500)
-  end
-  if #points==0 then
-    print("LOOP")
-    points=genAsteroids(play, num)
-  end
-  return points
 end
