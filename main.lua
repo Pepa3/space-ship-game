@@ -41,7 +41,8 @@ function love.load()
   HUDr = math.sqrt(HUDradius^2+HUDradius^2)
   HUDrStart = math.sqrt(HUDradiusStart^2+HUDradiusStart^2)
   HUDrStop =  math.sqrt(HUDradiusStop^2+HUDradiusStop^2)
-  MAXAV = 51
+  MAXAV = 50
+  AutoRotateAstID = nil
 
   UpdateLidar=true
   Lidar = {}
@@ -104,12 +105,14 @@ function initWorld()
   function player:rotR(spd)
     local x,y = self.body:getPosition()
     local phi = self.body:getAngle() -- FL, BR
+    spd=spd*2
     self.body:applyForce(Tradius*math.cos(FFLphi+phi)*spd, Tradius*math.sin(FFLphi+phi)*spd,x+(Tradius*math.cos(TFLphi+phi)),y+(Tradius*math.sin(TFLphi+phi)))
     self.body:applyForce(Tradius*math.cos(FBRphi+phi)*spd, Tradius*math.sin(FBRphi+phi)*spd,x+(Tradius*math.cos(TBRphi+phi)),y+(Tradius*math.sin(TBRphi+phi)))
   end
   function player:rotL(spd)
     local x,y = self.body:getPosition()
     local phi = self.body:getAngle() -- BL, FR
+    spd=spd*2
     self.body:applyForce(Tradius*math.cos(FBLphi+phi)*spd, Tradius*math.sin(FBLphi+phi)*spd,x+(Tradius*math.cos(TBLphi+phi)),y+(Tradius*math.sin(TBLphi+phi)))
     self.body:applyForce(Tradius*math.cos(FFRphi+phi)*spd, Tradius*math.sin(FFRphi+phi)*spd,x+(Tradius*math.cos(TFRphi+phi)),y+(Tradius*math.sin(TFRphi+phi)))
   end
@@ -172,6 +175,7 @@ function initWorld()
     local shape = love.physics.newCircleShape(0, 0, r)
     asteroid.fixture = love.physics.newFixture(asteroid.body, shape, 2-(75/r))
     asteroid.fixture:setUserData("Asteroid"..i)
+    asteroid.body:applyLinearImpulse(math.random(-100,100),math.random(-100,100))
     asteroid.damage=0
     Asteroid[i]=asteroid
   end
@@ -187,6 +191,12 @@ function love.update(dt)
   local Mx, My = love.mouse.getPosition()
   local spd = 1
 
+  if love.mouse.isDown(1) then
+    AutoRotateAstID=nil
+    GoalX = Mx-WWIDTH/2
+    GoalY = My-WHEIGHT/2
+  end
+
   for i,k in pairs(Asteroid) do
     if Asteroid[i].damage>0 then
       Asteroid[i].fixture:getShape():setRadius(math.max(Asteroid[i].fixture:getShape():getRadius()-5,5))
@@ -194,6 +204,15 @@ function love.update(dt)
         Asteroid[i].body:setMass(0.1)
       end
       Asteroid[i].damage=0
+    end
+    if love.mouse.isDown(1) then
+      local ax,ay = Asteroid[i].body:getPosition()
+      ax=ax-x+WWIDTH/2
+      ay=ay-y+WHEIGHT/2
+      local r = Asteroid[i].fixture:getShape():getRadius()
+      if ax<Mx+r and ax>Mx-r and ay<My+r and ay>My-r then
+        AutoRotateAstID = i
+      end
     end
   end
 
@@ -219,11 +238,6 @@ function love.update(dt)
     local py = WHEIGHT*math.sin(Vphi+phidif)*0.6
     Particle[ParticleIndex] = {x=px+x,y=py+y}
     ParticleIndex=(ParticleIndex+1)%ParticleMax
-  end
-
-  if love.mouse.isDown(1) then
-    GoalX = Mx-WWIDTH/2
-    GoalY = My-WHEIGHT/2
   end
 
   if love.keyboard.isDown("lshift") then
@@ -268,10 +282,21 @@ function love.update(dt)
   end
 
   if AutoRotate then
+    if AutoRotateAstID then
+      local tmpx = Asteroid[AutoRotateAstID].body:getX()-x
+      local tmpy = Asteroid[AutoRotateAstID].body:getY()-y
+      local tmp = math.sqrt(tmpx^2+tmpy^2)
+      if tmp>150 and tmp<WWIDTH then
+        GoalX = tmpx
+        GoalY = tmpy
+      else
+        AutoRotateAstID=nil
+      end
+    end
     GoalPhi = math.atan2(GoalY,GoalX)*R2D%360
     if GoalPhi > phi+Acc or GoalPhi < phi-Acc then
-      local distR = math.abs((GoalPhi - (phi+phiV*1)+360)%360)
-      local distL = math.abs(((phi+phiV*1) - GoalPhi+360)%360)
+      local distR = math.abs((GoalPhi - (phi+phiV*0.5)+360)%360)
+      local distL = math.abs(((phi+phiV*0.5) - GoalPhi+360)%360)
       if math.abs(phiV)>MAXAV then
         player:aslow(1)
       elseif distR - distL > 0 and distL >= 1 then
