@@ -44,7 +44,7 @@ function love.load()
   HUDr = math.sqrt(HUDradius^2+HUDradius^2)
   HUDrStart = math.sqrt(HUDradiusStart^2+HUDradiusStart^2)
   HUDrStop =  math.sqrt(HUDradiusStop^2+HUDradiusStop^2)
-  MAXAV = 50
+  MAXAV = 60
   AutoRotateAstID = nil
 
   UpdateLidar=true
@@ -344,8 +344,8 @@ function love.update(dt)
     end
     GoalPhi = math.atan2(GoalY,GoalX)*R2D%360
     if GoalPhi > phi+Acc or GoalPhi < phi-Acc then
-      local distR = math.abs((GoalPhi - (phi+phiV*0.5)+360)%360)
-      local distL = math.abs(((phi+phiV*0.5) - GoalPhi+360)%360)
+      local distR = math.abs((GoalPhi - (phi+phiV*0.6)+360)%360)
+      local distL = math.abs(((phi+phiV*0.6) - GoalPhi+360)%360)
       if math.abs(phiV)>MAXAV then
         player:aslow(1)
       elseif distR - distL > 0 and distL >= 1 then
@@ -408,9 +408,11 @@ function love.draw()
   love.graphics.print(string.format("X %.1f Y %.1f",x/PPM,y/PPM),x-WWIDTH/2+50,y-WHEIGHT/2+50)
   love.graphics.print(string.format("Angle %.2f",phi),x-WWIDTH/2+50,y-WHEIGHT/2+70)
   if drawDebug then
-    love.graphics.print(string.format("%.0f",debug1),x-WWIDTH/2+50,y-WHEIGHT/2+90)
-    love.graphics.print(string.format("%.0f",debug2),x-WWIDTH/2+50,y-WHEIGHT/2+110)
-    love.graphics.print(string.format("%.0f",debug3),x-WWIDTH/2+50,y-WHEIGHT/2+130)
+    love.graphics.print(string.format("%.0f",debug1),x+WWIDTH/2-50,y-WHEIGHT/2+50)
+    love.graphics.print(string.format("%.0f",debug2),x+WWIDTH/2-50,y-WHEIGHT/2+70)
+    love.graphics.print(string.format("%.0f",debug3),x+WWIDTH/2-50,y-WHEIGHT/2+90)
+
+    love.graphics.print(string.format("VX %.2f VY %.2f",vx/PPM,vy/PPM),x-WWIDTH/2+50,y-WHEIGHT/2+90)
   end
 
   love.graphics.line(x,y,x+vx/2,y+vy/2)--vector
