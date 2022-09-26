@@ -5,6 +5,8 @@ function love.load()
   imageShipWidth, imageShipHeight = imageShip:getDimensions()
   COORD_INFINITE = 199999
   drawDebug = false
+  debug1,debug2,debug3 = 0,0,0
+  line1,line2,line3 = {x=0,y=0},{x=0,y=0},{x=0,y=0}
 
   R2D = 180/math.pi
   PPM = 50
@@ -32,6 +34,7 @@ function love.load()
   FBphi  = math.atan2(0,TB)
 
   AutoRotate = true
+  AutoVelocity = false
   Acc = 0.0001
   GoalX, GoalY = 10,0
   GoalPhi = 0
@@ -61,7 +64,7 @@ function love.load()
 
   Particle = {}
   ParticleIndex = 0
-  ParticleMax = 100
+  ParticleMax = math.floor(WWIDTH*WHEIGHT/5000)
 
   Bullet = {}
   BulletIndex = 0
@@ -179,6 +182,7 @@ function initWorld()
     asteroid.damage=0
     Asteroid[i]=asteroid
   end
+  addAsteroid(200,0)
 end
 
 function love.update(dt)
@@ -212,6 +216,7 @@ function love.update(dt)
       local r = Asteroid[i].fixture:getShape():getRadius()
       if ax<Mx+r and ax>Mx-r and ay<My+r and ay>My-r then
         AutoRotateAstID = i
+        AutoVelocity=true
       end
     end
   end
@@ -229,13 +234,14 @@ function love.update(dt)
     local radius = math.random(2000,7000)
     addAsteroid(radius*math.cos(phi/R2D)+x,radius*math.sin(phi/R2D)+y)
   end
-  
-  if timeAsteroidsParticles<love.timer.getTime()-(1-math.min(math.sqrt(math.abs(Vx^2+Vy^2))/500,1)) then
+
+  local everyX = 1/(math.sqrt(math.abs(Vx^2+Vy^2))/10)
+  if timeAsteroidsParticles<love.timer.getTime()-everyX then
     timeAsteroidsParticles=love.timer.getTime()
-    local phidif = math.random(60,-60)/R2D
+    local phidif = math.random(70,-70)/R2D
     local Vphi = math.atan2(Vy,Vx)
-    local px = WWIDTH*math.cos(Vphi+phidif)*0.6
-    local py = WHEIGHT*math.sin(Vphi+phidif)*0.6
+    local px = WWIDTH*math.cos(Vphi+phidif)*0.7
+    local py = WHEIGHT*math.sin(Vphi+phidif)*0.7
     Particle[ParticleIndex] = {x=px+x,y=py+y}
     ParticleIndex=(ParticleIndex+1)%ParticleMax
   end
@@ -248,24 +254,36 @@ function love.update(dt)
 
   if love.keyboard.isDown("a") then
     player:left(spd)
+    AutoVelocity=false
   elseif love.keyboard.isDown("d") then
     player:right(spd)
+    AutoVelocity=false
   elseif love.keyboard.isDown("q") then
     player:rotL(spd)
+    AutoVelocity=false
+    AutoRotate=false
   elseif love.keyboard.isDown("e") then
     player:rotR(spd)
+    AutoVelocity=false
+    AutoRotate=false
   end
 
   if love.keyboard.isDown("w") then
     player:fwd(spd)
+    AutoVelocity=false
   elseif love.keyboard.isDown("s") then
+    AutoVelocity=false
     player:bck(spd)
   elseif love.keyboard.isDown("x") then
     player:aslow(spd)
   elseif love.keyboard.isDown("r") then
+    AutoRotateAstID = nil
+    AutoVelocity=false
     GoalX = -Vx
     GoalY = -Vy
   elseif love.keyboard.isDown("f") then
+    AutoRotateAstID = nil
+    AutoVelocity=false
     GoalX = Vx
     GoalY = Vy
   end
@@ -285,12 +303,43 @@ function love.update(dt)
     if AutoRotateAstID then
       local tmpx = Asteroid[AutoRotateAstID].body:getX()-x
       local tmpy = Asteroid[AutoRotateAstID].body:getY()-y
+      local tmpxv,tmpyv = Asteroid[AutoRotateAstID].body:getLinearVelocity()
       local tmp = math.sqrt(tmpx^2+tmpy^2)
-      if tmp>150 and tmp<WWIDTH then
+      if tmp>120 and tmp<WWIDTH then
         GoalX = tmpx
         GoalY = tmpy
       else
         AutoRotateAstID=nil
+      end
+      if AutoVelocity then
+        local avr = math.sqrt(tmpxv^2+tmpyv^2)
+        local avphi = math.atan2(tmpxv,tmpyv)*R2D
+        --avphi=(avphi-phi+360)%360
+        line1.x = tmpxv
+        line1.y = tmpyv
+        tmpxv = avr*math.cos(avphi/R2D)
+        tmpyv = avr*math.sin(avphi/R2D)
+
+        local pvr = math.sqrt(Vx^2+Vy^2)
+        local pvphi = math.atan2(Vx,Vy)*R2D
+        local pxv = pvr*math.cos(pvphi/R2D)
+        local pyv = pvr*math.sin(pvphi/R2D)
+        line2.x = pxv
+        line2.y = pyv
+
+        local difxv = tmpxv-pxv
+        local difyv = tmpyv-pyv
+
+        if difxv>5 then
+          player:right(1)
+        elseif difxv<-5 then
+          player:left(1)
+        end
+        if difyv>5 then
+          player:fwd(2/3)
+        elseif difyv<-5 then
+          player:bck(1)
+        end
       end
     end
     GoalPhi = math.atan2(GoalY,GoalX)*R2D%360
@@ -336,7 +385,9 @@ function love.draw()
     love.graphics.polygon("line",player.body:getWorldPoints(player.fixture4:getShape():getPoints()))
     love.graphics.polygon("line",player.body:getWorldPoints(player.fixture5:getShape():getPoints()))
     love.graphics.polygon("line",player.body:getWorldPoints(player.fixture6:getShape():getPoints()))
-    love.graphics.polygon("line",player.body:getWorldPoints(player.fixture7:getShape():getPoints()))
+    if player.fixture7 then
+      love.graphics.polygon("line",player.body:getWorldPoints(player.fixture7:getShape():getPoints()))
+    end
   end
 
   love.graphics.setColor(0.1, 0.1, 0.1)--grey
@@ -356,14 +407,22 @@ function love.draw()
 
   love.graphics.print(string.format("X %.1f Y %.1f",x/PPM,y/PPM),x-WWIDTH/2+50,y-WHEIGHT/2+50)
   love.graphics.print(string.format("Angle %.2f",phi),x-WWIDTH/2+50,y-WHEIGHT/2+70)
+  if drawDebug then
+    love.graphics.print(string.format("%.0f",debug1),x-WWIDTH/2+50,y-WHEIGHT/2+90)
+    love.graphics.print(string.format("%.0f",debug2),x-WWIDTH/2+50,y-WHEIGHT/2+110)
+    love.graphics.print(string.format("%.0f",debug3),x-WWIDTH/2+50,y-WHEIGHT/2+130)
+  end
 
   love.graphics.line(x,y,x+vx/2,y+vy/2)--vector
+  if drawDebug then
+    love.graphics.line(x,y,x+line1.x,y+line1.y)
+    love.graphics.line(x,y,x+line2.x,y+line2.y)
+    love.graphics.line(x,y,x+line3.x,y+line3.y)
+  end
   love.graphics.circle("line",x,y,HUDradius)--circle
   --goal line
   love.graphics.line(x+HUDrStart*math.cos(GoalPhi/R2D),y+HUDrStart*math.sin(GoalPhi/R2D),x+HUDrStop*math.cos(GoalPhi/R2D),y+HUDrStop*math.sin(GoalPhi/R2D))
-  --current angle
-  love.graphics.line(x+HUDrStart*math.cos(angle),y+HUDrStart*math.sin(angle),x+HUDrStop*math.cos(angle),y+HUDrStop*math.sin(angle))
-
+  
   --lidar lines
   if UpdateLidar then
     for i=0,360,1 do
@@ -373,6 +432,10 @@ function love.draw()
       end
     end
   end
+  love.graphics.setColor(0.1,1,0.1)--green
+  --current angle
+  love.graphics.line(x+HUDrStart*math.cos(angle),y+HUDrStart*math.sin(angle),x+HUDrStop*math.cos(angle),y+HUDrStop*math.sin(angle))
+
 end
 
 function love.keypressed(key, scancode, isrepeat)
@@ -384,6 +447,8 @@ function love.keypressed(key, scancode, isrepeat)
     UpdateLidar = not UpdateLidar
   elseif key == "space" then
     player:shoot()
+  elseif key == "f3" then
+    drawDebug = not drawDebug
   end
 end
 
